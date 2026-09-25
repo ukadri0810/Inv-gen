@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quotation & Invoice PDF Generator</title>
+    <!-- Tailwind CSS for the Editor UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf.js for Direct PDF Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        /* Document Preview Styling (Matches your exact PDF template) */
+        #pdf-document {
+            width: 210mm;
+            min-height: 296mm;
+            padding: 18mm 15mm;
+            background-color: #f8fafc;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #334155;
+            line-height: 1.55;
+            font-size: 10.5pt;
+            box-sizing: border-box;
+            margin: 0 auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        #pdf-document .header {
+            border-bottom: 3px solid #0f172a;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+        #pdf-document .header h1 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 24pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            line-height: 1.1;
+        }
+        #pdf-document .meta-info {
+            width: 100%;
+            margin-bottom: 24px;
+            border-collapse: collapse;
+        }
+        #pdf-document .meta-info td {
+            vertical-align: top;
+        }
+        #pdf-document .meta-info .right {
+            text-align: right;
+        }
+        #pdf-document .section-title {
+            color: #0f172a;
+            font-size: 13pt;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 5px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+        #pdf-document .table-pricing {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background-color: #ffffff;
+        }
+        #pdf-document .table-pricing th {
+            background-color: #0f172a;
+            color: #ffffff;
+            text-align: left;
+            padding: 12px;
+            font-size: 11pt;
+        }
+        #pdf-document .table-pricing td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px;
+            vertical-align: top;
+        }
+        #pdf-document .table-pricing .price-col {
+            text-align: right;
+            font-weight: bold;
+            width: 25%;
+            color: #0f172a;
+            font-size: 12pt;
+        }
+        #pdf-document .scope-list {
+            margin: 6px 0 0 0;
+            padding-left: 20px;
+            font-size: 10pt;
+            color: #475569;
+            list-style-type: disc;
+        }
+        #pdf-document .scope-list li {
+            margin-bottom: 6px;
+        }
+        #pdf-document .totals-table {
+            width: 50%;
+            margin-left: auto;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        #pdf-document .totals-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        #pdf-document .totals-table .bold {
+            font-weight: bold;
+            color: #0f172a;
+        }
+        #pdf-document .totals-table .amount {
+            text-align: right;
+        }
+        #pdf-document .totals-table .balance {
+            font-size: 14pt;
+            color: #2563eb;
+            border-bottom: none;
+            padding-top: 15px;
+        }
+        #pdf-document .terms {
+            font-size: 10pt;
+            color: #475569;
+        }
+        #pdf-document .terms ul {
+            padding-left: 20px;
+            margin-top: 5px;
+            list-style-type: disc;
+        }
+        #pdf-document .terms li {
+            margin-bottom: 6px;
+        }
+        #pdf-document .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 9pt;
+            color: #64748b;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 15px;
+        }
+
+        /* Print Settings for Crisp Native PDF Saving */
+        @media print {
+            body { background: #f8fafc; margin: 0; padding: 0; }
+            #editor-panel { display: none !important; }
+            #preview-panel { width: 100% !important; padding: 0 !important; overflow: visible !important; }
+            #pdf-document { box-shadow: none !important; width: 100% !important; min-height: auto !important; }
+            @page { size: A4; margin: 0; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen flex overflow-hidden">
+
+    <!-- LEFT SIDE: EDITOR PANEL -->
+    <div id="editor-panel" class="w-full md:w-5/12 lg:w-4/12 bg-slate-800 h-full overflow-y-auto p-6 border-r border-slate-700 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-4">
+            <div>
+                <h2 class="text-xl font-bold text-white">PDF Generator</h2>
+                <p class="text-xs text-slate-400">Quotation & Invoice Builder</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="setPreset('quotation')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded">Quotation Mode</button>
+                <button onclick="setPreset('invoice')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold rounded">Invoice Mode</button>
+            </div>
+        </div>
+
+        <!-- Document Header Info -->
+        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">1. Header Details</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-400">Main Title</label>
+                    <input type="text" id="docTitle" value="QUOTATION" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400">Date</label>
+                    <input type="text" id="docDate" value="25 September 2026" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs text-slate-400">Subtitle / Project Name</label>
+                <input type="text" id="docSubtitle" value="Visa Document PDF Converter System (PWA)" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-400">Number Label</label>
+                    <input type="text" id="numLabel" value="Quote #:" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400">Quote / Invoice #</label>
+                    <input type="text" id="docNumber" value="SYS-2026-002" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                </div>
+            </div>
+        </div>
+
+        <!-- Client Info -->
+        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">2. Client Details</h3>
+            <div>
+                <label class="text-xs text-slate-400">Client Name / Company</label>
+                <input type="text" id="clientName" value="Al Bahar Tours and Travels" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+            </div>
+            <div>
+                <label class="text-xs text-slate-400">Client Phone / Address</label>
+                <input type="text" id="clientPhone" value="Phone: 8080107527" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+            </div>
+        </div>
+
+        <!-- Project Overview (Optional) -->
+        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">3. Project Overview</h3>
+                <input type="checkbox" id="showOverview" checked onchange="render()" class="w-4 h-4">
+            </div>
+            <textarea id="overviewText" rows="3" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">Development of a fast, mobile-friendly Progressive Web Application (PWA) designed to capture client visa documents (Passport & PAN Card) via mobile camera and instantly merge them into a clean, shareable PDF without storing sensitive files on any server.</textarea>
+        </div>
+
+        <!-- Line Items -->
+        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">4. Items & Pricing</h3>
+                <button onclick="addItem()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-xs font-bold rounded">+ Add Item</button>
+            </div>
+            <div id="items-container" class="space-y-4"></div>
+        </div>
+
+        <!-- Discounts & Advance -->
+        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">5. Discount & Advance</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-400">Discount (₹)</label>
+                    <input type="number" id="discountAmt" value="0" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400">Advance Paid (₹)</label>
+                    <input type="number" id="advanceAmt" value="0" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                </div>
+            </div>
+        </div>
+
+        <!-- Terms & Conditions -->
+        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">6. Terms & Conditions</h3>
+                <input type="checkbox" id="showTerms" checked onchange="render()" class="w-4 h-4">
+            </div>
+            <p class="text-xs text-slate-400">Put each bullet point on a new line:</p>
+            <textarea id="termsText" rows="4" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">Payment Schedule: 50% advance deposit required to begin development; 50% balance due upon completion and deployment.
+Zero Storage Architecture: No photos or generated PDFs will be saved on the server.
+Validity: This quotation is valid for 15 days from the date of issue.</textarea>
+        </div>
+
+        <!-- Footer Text -->
+        <div class="space-y-2 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+            <label class="text-xs text-slate-400">Footer Note</label>
+            <input type="text" id="footerText" value="Thank you for the opportunity to work with you. We look forward to building this system for your business!" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+        </div>
+
+        <!-- Download Buttons -->
+        <div class="pt-2 pb-8 space-y-3">
+            <button onclick="downloadPDF()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition">
+                ⬇ Download PDF File Directly
+            </button>
+            <button onclick="window.print()" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg text-sm transition">
+                🖨 Print / Save as Crisp PDF (Recommended)
+            </button>
+        </div>
+    </div>
+
+    <!-- RIGHT SIDE: LIVE A4 PREVIEW -->
+    <div id="preview-panel" class="w-full md:w-7/12 lg:w-8/12 h-full overflow-y-auto p-8 bg-slate-950 flex justify-center">
+        <div id="pdf-document">
+            <!-- Populated dynamically via JS -->
+        </div>
+    </div>
+
+    <script>
+        let items = [
+            {
+                title: "Visa Document PDF Converter App (PWA)",
+                cost: 16000,
+                bullets: "Admin & User Access Control: Create new user login IDs and passwords, and disable/enable users anytime.\nGuided Camera Capture: Click photos directly for Passport Front, Passport Back, and PAN Card.\nInstant PDF Conversion: Automatically arranges photos into a single formatted PDF.\nDirect WhatsApp Share & Download: One-tap option to share on WhatsApp or download.\nInstallable PWA & 100% Privacy: Processed directly on the phone with zero server storage costs."
+            }
+        ];
+
+        function formatINR(num) {
+            return Number(num).toLocaleString('en-IN');
+        }
+
+        function renderItemInputs() {
+            const container = document.getElementById('items-container');
+            container.innerHTML = '';
+            items.forEach((item, index) => {
+                container.innerHTML += `
+                    <div class="p-3 bg-slate-800 rounded border border-slate-600 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-300">Item #${index + 1}</span>
+                            ${items.length > 1 ? `<button onclick="removeItem(${index})" class="text-xs text-red-400 hover:text-red-300">Remove</button>` : ''}
+                        </div>
+                        <input type="text" placeholder="Package / Item Title" value="${item.title}" oninput="updateItem(${index}, 'title', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white">
+                        <input type="number" placeholder="Cost (₹)" value="${item.cost}" oninput="updateItem(${index}, 'cost', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white">
+                        <textarea rows="3" placeholder="Bullet points (one per line)" oninput="updateItem(${index}, 'bullets', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">${item.bullets}</textarea>
+                    </div>
+                `;
+            });
+        }
+
+        function updateItem(index, field, value) {
+            items[index][field] = field === 'cost' ? Number(value) : value;
+            render();
+        }
+
+        function addItem() {
+            items.push({ title: "New Service Package", cost: 10000, bullets: "Feature 1\nFeature 2" });
+            renderItemInputs();
+            render();
+        }
+
+        function removeItem(index) {
+            items.splice(index, 1);
+            renderItemInputs();
+            render();
+        }
+
+        function setPreset(mode) {
+            if (mode === 'invoice') {
+                document.getElementById('docTitle').value = 'INVOICE';
+                document.getElementById('docSubtitle').value = 'Advance Payment Receipt';
+                document.getElementById('numLabel').value = 'Invoice #:';
+                document.getElementById('docNumber').value = 'INV-SYS-2026-002';
+                document.getElementById('showOverview').checked = false;
+                document.getElementById('showTerms').checked = false;
+                document.getElementById('advanceAmt').value = 8000;
+                document.getElementById('footerText').value = 'Thank you for your business! This is an electronically generated invoice.';
+            } else {
+                document.getElementById('docTitle').value = 'QUOTATION';
+                document.getElementById('docSubtitle').value = 'Visa Document PDF Converter System (PWA)';
+                document.getElementById('numLabel').value = 'Quote #:';
+                document.getElementById('docNumber').value = 'SYS-2026-002';
+                document.getElementById('showOverview').checked = true;
+                document.getElementById('showTerms').checked = true;
+                document.getElementById('advanceAmt').value = 0;
+                document.getElementById('footerText').value = 'Thank you for the opportunity to work with you. We look forward to building this system for your business!';
+            }
+            render();
+        }
+
+        function formatBulletText(line) {
+            const colonIndex = line.indexOf(':');
+            if (colonIndex > 0 && colonIndex < 40) {
+                return `<strong>${line.substring(0, colonIndex + 1)}</strong>${line.substring(colonIndex + 1)}`;
+            }
+            return line;
+        }
+
+        function render() {
+            const docTitle = document.getElementById('docTitle').value;
+            const docSubtitle = document.getElementById('docSubtitle').value;
+            const docDate = document.getElementById('docDate').value;
+            const numLabel = document.getElementById('numLabel').value;
+            const docNumber = document.getElementById('docNumber').value;
+            const clientName = document.getElementById('clientName').value;
+            const clientPhone = document.getElementById('clientPhone').value;
+            const showOverview = document.getElementById('showOverview').checked;
+            const overviewText = document.getElementById('overviewText').value;
+            const discount = Number(document.getElementById('discountAmt').value) || 0;
+            const advance = Number(document.getElementById('advanceAmt').value) || 0;
+            const showTerms = document.getElementById('showTerms').checked;
+            const termsText = document.getElementById('termsText').value;
+            const footerText = document.getElementById('footerText').value;
+
+            let subtotal = 0;
+            let itemsHTML = '';
+
+            items.forEach(item => {
+                subtotal += Number(item.cost) || 0;
+                const bulletsArr = item.bullets.split('\n').filter(b => b.trim() !== '');
+                const bulletsHTML = bulletsArr.map(b => `<li>${formatBulletText(b)}</li>`).join('');
+                
+                itemsHTML += `
+                    <tr>
+                        <td>
+                            <strong>${item.title}</strong>
+                            ${bulletsHTML ? `<ul class="scope-list">${bulletsHTML}</ul>` : ''}
+                        </td>
+                        <td class="price-col">₹ ${formatINR(item.cost)}</td>
+                    </tr>
+                `;
+            });
+
+            const totalAmount = subtotal - discount;
+            const balanceDue = totalAmount - advance;
+
+            let totalsHTML = '';
+            if (discount > 0 || advance > 0) {
+                totalsHTML = `
+                    <table class="totals-table">
+                        <tr>
+                            <td class="bold">Subtotal:</td>
+                            <td class="amount">₹ ${formatINR(subtotal)}</td>
+                      
