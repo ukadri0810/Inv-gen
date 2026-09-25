@@ -2,15 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quotation & Invoice PDF Generator</title>
-    <!-- Tailwind CSS for the Editor UI -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Billing & Client Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- html2pdf.js for Direct PDF Download -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    
+
     <style>
-        /* Document Preview Styling (Matches your exact PDF template) */
+        /* Exact A4 PDF Template Styling */
         #pdf-document {
             width: 210mm;
             min-height: 296mm;
@@ -22,7 +20,8 @@
             font-size: 10.5pt;
             box-sizing: border-box;
             margin: 0 auto;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            transform-origin: top center;
         }
         #pdf-document .header {
             border-bottom: 3px solid #0f172a;
@@ -94,7 +93,7 @@
             margin-bottom: 6px;
         }
         #pdf-document .totals-table {
-            width: 50%;
+            width: 55%;
             margin-left: auto;
             margin-top: 20px;
             border-collapse: collapse;
@@ -137,153 +136,651 @@
             padding-top: 15px;
         }
 
-        /* Print Settings for Crisp Native PDF Saving */
+        /* Responsive Mobile Scaling for A4 Preview */
+        @media (max-width: 820px) {
+            #pdf-wrapper {
+                width: 100%;
+                overflow-x: hidden;
+                display: flex;
+                justify-content: center;
+            }
+            #pdf-document {
+                transform: scale(0.43);
+                margin-bottom: -160mm;
+            }
+        }
+        @media (min-width: 480px) and (max-width: 820px) {
+            #pdf-document {
+                transform: scale(0.6);
+                margin-bottom: -110mm;
+            }
+        }
+
+        /* Print Override */
         @media print {
             body { background: #f8fafc; margin: 0; padding: 0; }
-            #editor-panel { display: none !important; }
-            #preview-panel { width: 100% !important; padding: 0 !important; overflow: visible !important; }
-            #pdf-document { box-shadow: none !important; width: 100% !important; min-height: auto !important; }
+            .no-print { display: none !important; }
+            #view-preview { display: block !important; width: 100% !important; padding: 0 !important; }
+            #pdf-document { transform: none !important; margin: 0 !important; box-shadow: none !important; width: 100% !important; }
             @page { size: A4; margin: 0; }
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 h-screen flex overflow-hidden">
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-20 md:pb-0 flex flex-col">
 
-    <!-- LEFT SIDE: EDITOR PANEL -->
-    <div id="editor-panel" class="w-full md:w-5/12 lg:w-4/12 bg-slate-800 h-full overflow-y-auto p-6 border-r border-slate-700 space-y-6">
-        <div class="flex items-center justify-between border-b border-slate-700 pb-4">
-            <div>
-                <h2 class="text-xl font-bold text-white">PDF Generator</h2>
-                <p class="text-xs text-slate-400">Quotation & Invoice Builder</p>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="setPreset('quotation')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-semibold rounded">Quotation Mode</button>
-                <button onclick="setPreset('invoice')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold rounded">Invoice Mode</button>
-            </div>
+    <!-- TOP BAR -->
+    <header class="no-print bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+        <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+            <h1 class="font-bold text-base md:text-lg text-white tracking-wide">Billing & Client Manager</h1>
         </div>
+        <!-- Desktop Navigation Tabs -->
+        <nav class="hidden md:flex gap-2">
+            <button onclick="switchTab('clients')" id="dtab-clients" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-blue-600 text-white">👥 Clients & Dues</button>
+            <button onclick="switchTab('builder')" id="dtab-builder" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">📝 Quote/Invoice Builder</button>
+            <button onclick="switchTab('preview')" id="dtab-preview" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">📄 Live PDF Preview</button>
+            <button onclick="switchTab('history')" id="dtab-history" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">📜 Number History</button>
+        </nav>
+        <div class="flex gap-2">
+            <button onclick="saveAndDownloadPDF()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-bold rounded-lg shadow">
+                ⬇ Save & Download PDF
+            </button>
+        </div>
+    </header>
 
-        <!-- Document Header Info -->
-        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">1. Header Details</h3>
-            <div class="grid grid-cols-2 gap-3">
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+
+        <!-- TAB 1: CLIENTS & MONTHLY DUES MANAGER -->
+        <section id="view-clients" class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Add / Edit Client Form -->
+                <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4 h-fit">
+                    <h2 class="text-base font-bold text-blue-400 uppercase tracking-wider" id="client-form-title">+ Add Client / Monthly Plan</h2>
+                    <input type="hidden" id="editClientId" value="">
+                    
+                    <div>
+                        <label class="text-xs text-slate-400">Client / Company Name *</label>
+                        <input type="text" id="cName" placeholder="e.g. Al Bahar Tours and Travels" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Phone Number (WhatsApp) *</label>
+                        <input type="text" id="cPhone" placeholder="e.g. 8080107527" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Service / Package Description *</label>
+                        <input type="text" id="cService" placeholder="e.g. Monthly Server & Maintenance" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs text-slate-400">Billing Cycle</label>
+                            <select id="cCycle" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                                <option value="Monthly">Monthly</option>
+                                <option value="Yearly">Yearly</option>
+                                <option value="One-Time">One-Time</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400">Amount (₹) *</label>
+                            <input type="number" id="cAmount" placeholder="e.g. 1500" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Next Due Date</label>
+                        <input type="date" id="cDueDate" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="saveClient()" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-sm transition">Save Client</button>
+                        <button onclick="resetClientForm()" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Client List & Due Tracker -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-bold text-white">Your Clients & Upcoming Dues</h2>
+                        <span id="clientCountBadge" class="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs text-slate-300">0 Clients</span>
+                    </div>
+                    <div id="clients-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- TAB 2: INVOICE / QUOTATION BUILDER -->
+        <section id="view-builder" class="hidden space-y-6 max-w-3xl mx-auto">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <label class="text-xs text-slate-400">Main Title</label>
-                    <input type="text" id="docTitle" value="QUOTATION" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                    <h2 class="text-base font-bold text-white">Document Mode</h2>
+                    <p class="text-xs text-slate-400">Switch mode to auto-generate the next non-duplicate number</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="setDocMode('quotation')" id="btn-mode-quote" class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg">Quotation Mode</button>
+                    <button onclick="setDocMode('invoice')" id="btn-mode-inv" class="px-4 py-2 bg-slate-700 text-slate-200 text-xs font-bold rounded-lg">Invoice Mode</button>
+                </div>
+            </div>
+
+            <!-- Header & Auto Numbering -->
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">1. Document & Auto-Number</h3>
+                    <button onclick="generateFreshNumber()" class="text-xs bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded text-blue-300 font-semibold">🔄 Get Next Unique #</button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-400">Main Heading</label>
+                        <input type="text" id="docTitle" value="INVOICE" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Date</label>
+                        <input type="text" id="docDate" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
                 </div>
                 <div>
-                    <label class="text-xs text-slate-400">Date</label>
-                    <input type="text" id="docDate" value="25 September 2026" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                    <label class="text-xs text-slate-400">Subtitle / Project Heading</label>
+                    <input type="text" id="docSubtitle" value="Advance Payment Receipt" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-400">Number Label</label>
+                        <input type="text" id="numLabel" value="Invoice #:" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Auto-Generated Number</label>
+                        <input type="text" id="docNumber" oninput="checkDuplicateWarning(); renderPDF()" class="w-full bg-slate-950 border border-emerald-500/60 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 mt-1">
+                        <p id="dupWarning" class="text-xs text-red-400 mt-1 hidden">⚠️ Warning: This number was already used!</p>
+                    </div>
                 </div>
             </div>
-            <div>
-                <label class="text-xs text-slate-400">Subtitle / Project Name</label>
-                <input type="text" id="docSubtitle" value="Visa Document PDF Converter System (PWA)" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs text-slate-400">Number Label</label>
-                    <input type="text" id="numLabel" value="Quote #:" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+
+            <!-- Client Details -->
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">2. Client Details</h3>
+                    <select id="quickClientSelect" onchange="fillClientFromDropdown(this.value)" class="bg-slate-900 border border-slate-600 rounded px-2.5 py-1 text-xs text-slate-200">
+                        <option value="">-- Select Existing Client --</option>
+                    </select>
                 </div>
-                <div>
-                    <label class="text-xs text-slate-400">Quote / Invoice #</label>
-                    <input type="text" id="docNumber" value="SYS-2026-002" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
-                </div>
-            </div>
-        </div>
-
-        <!-- Client Info -->
-        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">2. Client Details</h3>
-            <div>
-                <label class="text-xs text-slate-400">Client Name / Company</label>
-                <input type="text" id="clientName" value="Al Bahar Tours and Travels" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
-            </div>
-            <div>
-                <label class="text-xs text-slate-400">Client Phone / Address</label>
-                <input type="text" id="clientPhone" value="Phone: 8080107527" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
-            </div>
-        </div>
-
-        <!-- Project Overview (Optional) -->
-        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <div class="flex items-center justify-between">
-                <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">3. Project Overview</h3>
-                <input type="checkbox" id="showOverview" checked onchange="render()" class="w-4 h-4">
-            </div>
-            <textarea id="overviewText" rows="3" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">Development of a fast, mobile-friendly Progressive Web Application (PWA) designed to capture client visa documents (Passport & PAN Card) via mobile camera and instantly merge them into a clean, shareable PDF without storing sensitive files on any server.</textarea>
-        </div>
-
-        <!-- Line Items -->
-        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <div class="flex items-center justify-between">
-                <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">4. Items & Pricing</h3>
-                <button onclick="addItem()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-xs font-bold rounded">+ Add Item</button>
-            </div>
-            <div id="items-container" class="space-y-4"></div>
-        </div>
-
-        <!-- Discounts & Advance -->
-        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">5. Discount & Advance</h3>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs text-slate-400">Discount (₹)</label>
-                    <input type="number" id="discountAmt" value="0" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
-                </div>
-                <div>
-                    <label class="text-xs text-slate-400">Advance Paid (₹)</label>
-                    <input type="number" id="advanceAmt" value="0" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-400">Client / Company Name</label>
+                        <input type="text" id="clientName" value="Al Bahar Tours and Travels" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Client Phone / Details</label>
+                        <input type="text" id="clientPhone" value="Phone: 8080107527" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Terms & Conditions -->
-        <div class="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <div class="flex items-center justify-between">
-                <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">6. Terms & Conditions</h3>
-                <input type="checkbox" id="showTerms" checked onchange="render()" class="w-4 h-4">
+            <!-- Optional Project Overview -->
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">3. Project Overview (For Quotations)</h3>
+                    <input type="checkbox" id="showOverview" onchange="renderPDF()" class="w-4 h-4">
+                </div>
+                <textarea id="overviewText" rows="2" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">Development of a fast, mobile-friendly Progressive Web Application (PWA) designed specifically to streamline your business operations.</textarea>
             </div>
-            <p class="text-xs text-slate-400">Put each bullet point on a new line:</p>
-            <textarea id="termsText" rows="4" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">Payment Schedule: 50% advance deposit required to begin development; 50% balance due upon completion and deployment.
-Zero Storage Architecture: No photos or generated PDFs will be saved on the server.
+
+            <!-- Items & Pricing -->
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">4. Line Items & Pricing</h3>
+                    <button onclick="addItem()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-xs font-bold rounded-lg">+ Add Item</button>
+                </div>
+                <div id="items-container" class="space-y-4"></div>
+            </div>
+
+            <!-- Discount & Advance -->
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+                <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">5. Discount & Advance Payment</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-400">Discount (₹)</label>
+                        <input type="number" id="discountAmt" value="0" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400">Advance / Paid Amount (₹)</label>
+                        <input type="number" id="advanceAmt" value="0" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terms & Footer -->
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">6. Terms & Footer</h3>
+                    <input type="checkbox" id="showTerms" onchange="renderPDF()" class="w-4 h-4">
+                </div>
+                <textarea id="termsText" rows="3" oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">Payment Schedule: 50% advance deposit required to begin development; 50% balance due upon completion.
 Validity: This quotation is valid for 15 days from the date of issue.</textarea>
-        </div>
+                <div>
+                    <label class="text-xs text-slate-400">Footer Note</label>
+                    <input type="text" id="footerText" value="Thank you for your business! This is an electronically generated document." oninput="renderPDF()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                </div>
+            </div>
 
-        <!-- Footer Text -->
-        <div class="space-y-2 bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-            <label class="text-xs text-slate-400">Footer Note</label>
-            <input type="text" id="footerText" value="Thank you for the opportunity to work with you. We look forward to building this system for your business!" oninput="render()" class="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm text-white">
-        </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="switchTab('preview')" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg">👁️ Preview PDF</button>
+                <button onclick="saveAndDownloadPDF()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg">⬇ Save & Download PDF</button>
+            </div>
+        </section>
 
-        <!-- Download Buttons -->
-        <div class="pt-2 pb-8 space-y-3">
-            <button onclick="downloadPDF()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition">
-                ⬇ Download PDF File Directly
-            </button>
-            <button onclick="window.print()" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg text-sm transition">
-                🖨 Print / Save as Crisp PDF (Recommended)
-            </button>
-        </div>
-    </div>
+        <!-- TAB 3: LIVE PDF PREVIEW -->
+        <section id="view-preview" class="hidden space-y-4">
+            <div class="no-print bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 max-w-4xl mx-auto">
+                <div>
+                    <h2 class="text-sm font-bold text-white">Live A4 Document Preview</h2>
+                    <p class="text-xs text-slate-400">Downloading automatically saves the invoice number so it never duplicates.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="saveAndDownloadPDF()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg">⬇ Download PDF</button>
+                    <button onclick="lockCurrentDocument(); window.print()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg">🖨 Print / Save Crisp PDF</button>
+                </div>
+            </div>
 
-    <!-- RIGHT SIDE: LIVE A4 PREVIEW -->
-    <div id="preview-panel" class="w-full md:w-7/12 lg:w-8/12 h-full overflow-y-auto p-8 bg-slate-950 flex justify-center">
-        <div id="pdf-document">
-            <!-- Populated dynamically via JS -->
-        </div>
-    </div>
+            <div id="pdf-wrapper" class="py-2">
+                <div id="pdf-document"></div>
+            </div>
+        </section>
+
+        <!-- TAB 4: SAVED INVOICE / QUOTE HISTORY -->
+        <section id="view-history" class="hidden space-y-4 max-w-4xl mx-auto">
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Generated Invoice & Quote Log</h2>
+                    <p class="text-xs text-slate-400">Prevents duplicate numbers and lets you reload past bills anytime.</p>
+                </div>
+                <div class="flex gap-3 text-xs">
+                    <div class="bg-slate-900 px-3 py-2 rounded-lg border border-slate-700">
+                        Next Invoice #: <span id="nextInvBadge" class="font-bold text-emerald-400"></span>
+                    </div>
+                    <div class="bg-slate-900 px-3 py-2 rounded-lg border border-slate-700">
+                        Next Quote #: <span id="nextQuoteBadge" class="font-bold text-blue-400"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="history-list" class="space-y-3"></div>
+        </section>
+
+    </main>
+
+    <!-- MOBILE BOTTOM NAVIGATION BAR -->
+    <nav class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 grid grid-cols-4 z-40">
+        <button onclick="switchTab('clients')" id="mtab-clients" class="flex flex-col items-center justify-center py-2.5 text-blue-400 font-bold text-xs">
+            <span class="text-base">👥</span>
+            <span>Clients</span>
+        </button>
+        <button onclick="switchTab('builder')" id="mtab-builder" class="flex flex-col items-center justify-center py-2.5 text-slate-400 text-xs">
+            <span class="text-base">📝</span>
+            <span>Builder</span>
+        </button>
+        <button onclick="switchTab('preview')" id="mtab-preview" class="flex flex-col items-center justify-center py-2.5 text-slate-400 text-xs">
+            <span class="text-base">📄</span>
+            <span>Preview</span>
+        </button>
+        <button onclick="switchTab('history')" id="mtab-history" class="flex flex-col items-center justify-center py-2.5 text-slate-400 text-xs">
+            <span class="text-base">📜</span>
+            <span>History</span>
+        </button>
+    </nav>
 
     <script>
-        let items = [
+        // --- 1. STATE & LOCALSTORAGE INITIALIZATION ---
+        let currentMode = 'invoice'; // 'invoice' or 'quotation'
+        
+        // Load counters (Starts after your existing INV-SYS-2026-001 and SYS-2026-002)
+        let invCounter = Number(localStorage.getItem('bm_invCounter')) || 2;
+        let quoteCounter = Number(localStorage.getItem('bm_quoteCounter')) || 3;
+
+        // Load saved history
+        let savedHistory = JSON.parse(localStorage.getItem('bm_history')) || [
             {
-                title: "Visa Document PDF Converter App (PWA)",
-                cost: 16000,
-                bullets: "Admin & User Access Control: Create new user login IDs and passwords, and disable/enable users anytime.\nGuided Camera Capture: Click photos directly for Passport Front, Passport Back, and PAN Card.\nInstant PDF Conversion: Automatically arranges photos into a single formatted PDF.\nDirect WhatsApp Share & Download: One-tap option to share on WhatsApp or download.\nInstallable PWA & 100% Privacy: Processed directly on the phone with zero server storage costs."
+                docNumber: "INV-SYS-2026-001",
+                docTitle: "INVOICE",
+                docSubtitle: "Advance Payment Receipt",
+                clientName: "Al Bahar Tours and Travels",
+                clientPhone: "Phone: 8080107527",
+                date: "03 September 2026",
+                total: 20000,
+                balance: 10000
+            },
+            {
+                docNumber: "SYS-2026-002",
+                docTitle: "QUOTATION",
+                docSubtitle: "Visa Document PDF Converter System (PWA)",
+                clientName: "Al Bahar Tours and Travels",
+                clientPhone: "Phone: 8080107527",
+                date: "25 September 2026",
+                total: 16000,
+                balance: 16000
             }
         ];
 
+        // Load clients
+        let clients = JSON.parse(localStorage.getItem('bm_clients')) || [
+            {
+                id: 'c1',
+                name: 'Al Bahar Tours and Travels',
+                phone: '8080107527',
+                service: 'Custom Lead & Booking Management System (Balance / Maintenance)',
+                cycle: 'Monthly',
+                amount: 10000,
+                dueDate: new Date().toISOString().split('T')[0]
+            }
+        ];
+
+        let items = [
+            {
+                title: "Custom Lead & Booking Management System",
+                cost: 22000,
+                bullets: "Includes Lead Management, Booking & Payment Ledger, Invoice Generation, and Multi-user access (up to 3 users)."
+            }
+        ];
+
+        function saveData() {
+            localStorage.setItem('bm_invCounter', invCounter);
+            localStorage.setItem('bm_quoteCounter', quoteCounter);
+            localStorage.setItem('bm_history', JSON.stringify(savedHistory));
+            localStorage.setItem('bm_clients', JSON.stringify(clients));
+        }
+
         function formatINR(num) {
-            return Number(num).toLocaleString('en-IN');
+            return Number(num || 0).toLocaleString('en-IN');
+        }
+
+        function getTodayFormatted() {
+            return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+        }
+
+        // --- 2. NON-DUPLICATING NUMBER GENERATOR ---
+        function getUniqueDocNumber(mode) {
+            const year = new Date().getFullYear();
+            let counter = mode === 'invoice' ? invCounter : quoteCounter;
+            let prefix = mode === 'invoice' ? `INV-SYS-${year}-` : `SYS-${year}-`;
+            
+            let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+            // Guarantee it doesn't exist in savedHistory
+            while (savedHistory.some(h => h.docNumber.toUpperCase() === candidate.toUpperCase())) {
+                counter++;
+                candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+            }
+
+            if (mode === 'invoice') invCounter = counter;
+            else quoteCounter = counter;
+            saveData();
+            updateHistoryBadges();
+            return candidate;
+        }
+
+        function generateFreshNumber() {
+            document.getElementById('docNumber').value = getUniqueDocNumber(currentMode);
+            checkDuplicateWarning();
+            renderPDF();
+        }
+
+        function checkDuplicateWarning() {
+            const val = document.getElementById('docNumber').value.trim().toUpperCase();
+            const exists = savedHistory.some(h => h.docNumber.toUpperCase() === val);
+            document.getElementById('dupWarning').classList.toggle('hidden', !exists);
+        }
+
+        function lockCurrentDocument() {
+            const docNum = document.getElementById('docNumber').value.trim();
+            if (!docNum) return;
+
+            const subtotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+            const discount = Number(document.getElementById('discountAmt').value) || 0;
+            const advance = Number(document.getElementById('advanceAmt').value) || 0;
+            const total = subtotal - discount;
+            const balance = total - advance;
+
+            const existingIdx = savedHistory.findIndex(h => h.docNumber.toUpperCase() === docNum.toUpperCase());
+            const record = {
+                docNumber: docNum,
+                docTitle: document.getElementById('docTitle').value,
+                docSubtitle: document.getElementById('docSubtitle').value,
+                clientName: document.getElementById('clientName').value,
+                clientPhone: document.getElementById('clientPhone').value,
+                date: document.getElementById('docDate').value,
+                items: JSON.parse(JSON.stringify(items)),
+                discount,
+                advance,
+                total,
+                balance
+            };
+
+            if (existingIdx >= 0) {
+                savedHistory[existingIdx] = record;
+            } else {
+                savedHistory.unshift(record);
+                // Advance counter for next time
+                if (currentMode === 'invoice') invCounter++;
+                else quoteCounter++;
+            }
+
+            saveData();
+            renderHistory();
+            updateHistoryBadges();
+        }
+
+        // --- 3. NAVIGATION TABS ---
+        function switchTab(tab) {
+            ['clients', 'builder', 'preview', 'history'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.toggle('hidden', t !== tab);
+                
+                // Desktop button style
+                const dBtn = document.getElementById(`dtab-${t}`);
+                if (dBtn) {
+                    dBtn.className = t === tab 
+                        ? "px-4 py-1.5 rounded-lg text-sm font-semibold bg-blue-600 text-white"
+                        : "px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700";
+                }
+                // Mobile button style
+                const mBtn = document.getElementById(`mtab-${t}`);
+                if (mBtn) {
+                    mBtn.className = t === tab
+                        ? "flex flex-col items-center justify-center py-2.5 text-blue-400 font-bold text-xs"
+                        : "flex flex-col items-center justify-center py-2.5 text-slate-400 text-xs";
+                }
+            });
+            if (tab === 'preview') renderPDF();
+            if (tab === 'history') renderHistory();
+        }
+
+        // --- 4. CLIENT & MONTHLY DUE MANAGEMENT ---
+        function getDueStatus(dueDateStr) {
+            if (!dueDateStr) return { label: 'No Due Date', color: 'bg-slate-700 text-slate-300' };
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const due = new Date(dueDateStr);
+            due.setHours(0,0,0,0);
+            const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) return { label: `Overdue by ${Math.abs(diffDays)}d`, color: 'bg-red-500/20 text-red-400 border border-red-500/40' };
+            if (diffDays === 0) return { label: 'Due Today!', color: 'bg-amber-500/20 text-amber-300 border border-amber-500/40' };
+            if (diffDays <= 5) return { label: `Due in ${diffDays}d`, color: 'bg-amber-500/20 text-amber-300 border border-amber-500/40' };
+            return { label: `Next: ${dueDateStr}`, color: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' };
+        }
+
+        function renderClients() {
+            const list = document.getElementById('clients-list');
+            const dropdown = document.getElementById('quickClientSelect');
+            document.getElementById('clientCountBadge').textContent = `${clients.length} Client${clients.length === 1 ? '' : 's'}`;
+            
+            list.innerHTML = '';
+            dropdown.innerHTML = '<option value="">-- Select Existing Client --</option>';
+
+            clients.forEach(c => {
+                dropdown.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                const status = getDueStatus(c.dueDate);
+
+                list.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="flex items-start justify-between gap-2">
+                                <h3 class="font-bold text-white text-base">${c.name}</h3>
+                                <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold ${status.color}">${status.label}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5">📞 ${c.phone} • <span class="text-blue-400 font-semibold">${c.cycle}</span></p>
+                            <div class="mt-3 p-2.5 bg-slate-900/80 rounded-lg border border-slate-700/60 flex justify-between items-center">
+                                <span class="text-xs text-slate-300 truncate pr-2">${c.service}</span>
+                                <span class="text-sm font-bold text-white whitespace-nowrap">₹ ${formatINR(c.amount)}</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                            <button onclick="billClientNow('${c.id}')" class="px-2.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg text-center">
+                                ⚡ Bill Now
+                            </button>
+                            <button onclick="markClientPaid('${c.id}')" class="px-2.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-lg text-center">
+                                ✅ +1 Month
+                            </button>
+                            <button onclick="sendWhatsAppReminder('${c.id}')" class="px-2.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg text-center">
+                                💬 Remind
+                            </button>
+                            <div class="flex gap-1">
+                                <button onclick="editClient('${c.id}')" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg">✏️</button>
+                                <button onclick="deleteClient('${c.id}')" class="flex-1 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs rounded-lg">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function saveClient() {
+            const id = document.getElementById('editClientId').value;
+            const name = document.getElementById('cName').value.trim();
+            const phone = document.getElementById('cPhone').value.trim();
+            const service = document.getElementById('cService').value.trim();
+            const cycle = document.getElementById('cCycle').value;
+            const amount = Number(document.getElementById('cAmount').value) || 0;
+            const dueDate = document.getElementById('cDueDate').value;
+
+            if (!name || !service) {
+                alert("Please enter Client Name and Service.");
+                return;
+            }
+
+            if (id) {
+                const idx = clients.findIndex(c => c.id === id);
+                if (idx >= 0) clients[idx] = { id, name, phone, service, cycle, amount, dueDate };
+            } else {
+                clients.push({ id: 'c_' + Date.now(), name, phone, service, cycle, amount, dueDate });
+            }
+
+            saveData();
+            resetClientForm();
+            renderClients();
+        }
+
+        function editClient(id) {
+            const c = clients.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('client-form-title').textContent = "✏️ Edit Client";
+            document.getElementById('editClientId').value = c.id;
+            document.getElementById('cName').value = c.name;
+            document.getElementById('cPhone').value = c.phone;
+            document.getElementById('cService').value = c.service;
+            document.getElementById('cCycle').value = c.cycle;
+            document.getElementById('cAmount').value = c.amount;
+            document.getElementById('cDueDate').value = c.dueDate;
+        }
+
+        function deleteClient(id) {
+            clients = clients.filter(c => c.id !== id);
+            saveData();
+            renderClients();
+        }
+
+        function resetClientForm() {
+            document.getElementById('client-form-title').textContent = "+ Add Client / Monthly Plan";
+            document.getElementById('editClientId').value = "";
+            document.getElementById('cName').value = "";
+            document.getElementById('cPhone').value = "";
+            document.getElementById('cService').value = "";
+            document.getElementById('cAmount').value = "";
+            document.getElementById('cDueDate').value = "";
+        }
+
+        function markClientPaid(id) {
+            const c = clients.find(x => x.id === id);
+            if (!c) return;
+            let baseDate = c.dueDate ? new Date(c.dueDate) : new Date();
+            if (c.cycle === 'Yearly') baseDate.setFullYear(baseDate.getFullYear() + 1);
+            else baseDate.setMonth(baseDate.getMonth() + 1);
+            c.dueDate = baseDate.toISOString().split('T')[0];
+            saveData();
+            renderClients();
+        }
+
+        function sendWhatsAppReminder(id) {
+            const c = clients.find(x => x.id === id);
+            if (!c) return;
+            const cleanPhone = c.phone.replace(/\D/g, '');
+            const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+            const msg = `Assalamualaikum ${c.name},\n\nThis is a gentle reminder regarding your ${c.cycle.toLowerCase()} payment of *₹${formatINR(c.amount)}* for *${c.service}* (Due Date: ${c.dueDate || 'Today'}).\n\nKindly process the payment at your earliest convenience. Thank you!`;
+            window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function billClientNow(id) {
+            const c = clients.find(x => x.id === id);
+            if (!c) return;
+            setDocMode('invoice');
+            document.getElementById('clientName').value = c.name;
+            document.getElementById('clientPhone').value = `Phone: ${c.phone}`;
+            document.getElementById('docSubtitle').value = `${c.cycle} Service Invoice`;
+            items = [{
+                title: c.service,
+                cost: c.amount,
+                bullets: `Billing Cycle: ${c.cycle}\nDue Date: ${c.dueDate || getTodayFormatted()}`
+            }];
+            document.getElementById('discountAmt').value = 0;
+            document.getElementById('advanceAmt').value = 0;
+            renderItemInputs();
+            renderPDF();
+            switchTab('builder');
+        }
+
+        function fillClientFromDropdown(id) {
+            const c = clients.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('clientName').value = c.name;
+            document.getElementById('clientPhone').value = `Phone: ${c.phone}`;
+            renderPDF();
+        }
+
+        // --- 5. BUILDER & PDF RENDERING ---
+        function setDocMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-mode-quote').className = mode === 'quotation'
+                ? "px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg"
+                : "px-4 py-2 bg-slate-700 text-slate-200 text-xs font-bold rounded-lg";
+            document.getElementById('btn-mode-inv').className = mode === 'invoice'
+                ? "px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg"
+                : "px-4 py-2 bg-slate-700 text-slate-200 text-xs font-bold rounded-lg";
+
+            if (mode === 'invoice') {
+                document.getElementById('docTitle').value = 'INVOICE';
+                document.getElementById('docSubtitle').value = 'Payment Receipt / Invoice';
+                document.getElementById('numLabel').value = 'Invoice #:';
+                document.getElementById('showOverview').checked = false;
+                document.getElementById('showTerms').checked = false;
+                document.getElementById('footerText').value = 'Thank you for your business! This is an electronically generated invoice.';
+            } else {
+                document.getElementById('docTitle').value = 'QUOTATION';
+                document.getElementById('docSubtitle').value = 'Custom System Development';
+                document.getElementById('numLabel').value = 'Quote #:';
+                document.getElementById('showOverview').checked = true;
+                document.getElementById('showTerms').checked = true;
+                document.getElementById('footerText').value = 'Thank you for the opportunity to work with you. We look forward to building this system for your business!';
+            }
+            generateFreshNumber();
         }
 
         function renderItemInputs() {
@@ -291,14 +788,16 @@ Validity: This quotation is valid for 15 days from the date of issue.</textarea>
             container.innerHTML = '';
             items.forEach((item, index) => {
                 container.innerHTML += `
-                    <div class="p-3 bg-slate-800 rounded border border-slate-600 space-y-2">
+                    <div class="p-3.5 bg-slate-900 rounded-lg border border-slate-700 space-y-2.5">
                         <div class="flex justify-between items-center">
-                            <span class="text-xs font-bold text-slate-300">Item #${index + 1}</span>
-                            ${items.length > 1 ? `<button onclick="removeItem(${index})" class="text-xs text-red-400 hover:text-red-300">Remove</button>` : ''}
+                            <span class="text-xs font-bold text-blue-400">Item #${index + 1}</span>
+                            ${items.length > 1 ? `<button onclick="removeItem(${index})" class="text-xs text-red-400">Remove</button>` : ''}
                         </div>
-                        <input type="text" placeholder="Package / Item Title" value="${item.title}" oninput="updateItem(${index}, 'title', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white">
-                        <input type="number" placeholder="Cost (₹)" value="${item.cost}" oninput="updateItem(${index}, 'cost', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white">
-                        <textarea rows="3" placeholder="Bullet points (one per line)" oninput="updateItem(${index}, 'bullets', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">${item.bullets}</textarea>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <input type="text" placeholder="Item / Package Title" value="${item.title}" oninput="updateItem(${index}, 'title', this.value)" class="sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-white">
+                            <input type="number" placeholder="Cost (₹)" value="${item.cost}" oninput="updateItem(${index}, 'cost', this.value)" class="bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-white">
+                        </div>
+                        <textarea rows="3" placeholder="Details / Bullet points (one per line)" oninput="updateItem(${index}, 'bullets', this.value)" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white">${item.bullets}</textarea>
                     </div>
                 `;
             });
@@ -306,42 +805,19 @@ Validity: This quotation is valid for 15 days from the date of issue.</textarea>
 
         function updateItem(index, field, value) {
             items[index][field] = field === 'cost' ? Number(value) : value;
-            render();
+            renderPDF();
         }
 
         function addItem() {
-            items.push({ title: "New Service Package", cost: 10000, bullets: "Feature 1\nFeature 2" });
+            items.push({ title: "Additional Service", cost: 5000, bullets: "Service description" });
             renderItemInputs();
-            render();
+            renderPDF();
         }
 
         function removeItem(index) {
             items.splice(index, 1);
             renderItemInputs();
-            render();
-        }
-
-        function setPreset(mode) {
-            if (mode === 'invoice') {
-                document.getElementById('docTitle').value = 'INVOICE';
-                document.getElementById('docSubtitle').value = 'Advance Payment Receipt';
-                document.getElementById('numLabel').value = 'Invoice #:';
-                document.getElementById('docNumber').value = 'INV-SYS-2026-002';
-                document.getElementById('showOverview').checked = false;
-                document.getElementById('showTerms').checked = false;
-                document.getElementById('advanceAmt').value = 8000;
-                document.getElementById('footerText').value = 'Thank you for your business! This is an electronically generated invoice.';
-            } else {
-                document.getElementById('docTitle').value = 'QUOTATION';
-                document.getElementById('docSubtitle').value = 'Visa Document PDF Converter System (PWA)';
-                document.getElementById('numLabel').value = 'Quote #:';
-                document.getElementById('docNumber').value = 'SYS-2026-002';
-                document.getElementById('showOverview').checked = true;
-                document.getElementById('showTerms').checked = true;
-                document.getElementById('advanceAmt').value = 0;
-                document.getElementById('footerText').value = 'Thank you for the opportunity to work with you. We look forward to building this system for your business!';
-            }
-            render();
+            renderPDF();
         }
 
         function formatBulletText(line) {
@@ -352,7 +828,7 @@ Validity: This quotation is valid for 15 days from the date of issue.</textarea>
             return line;
         }
 
-        function render() {
+        function renderPDF() {
             const docTitle = document.getElementById('docTitle').value;
             const docSubtitle = document.getElementById('docSubtitle').value;
             const docDate = document.getElementById('docDate').value;
@@ -373,7 +849,7 @@ Validity: This quotation is valid for 15 days from the date of issue.</textarea>
 
             items.forEach(item => {
                 subtotal += Number(item.cost) || 0;
-                const bulletsArr = item.bullets.split('\n').filter(b => b.trim() !== '');
+                const bulletsArr = (item.bullets || '').split('\n').filter(b => b.trim() !== '');
                 const bulletsHTML = bulletsArr.map(b => `<li>${formatBulletText(b)}</li>`).join('');
                 
                 itemsHTML += `
@@ -397,4 +873,163 @@ Validity: This quotation is valid for 15 days from the date of issue.</textarea>
                         <tr>
                             <td class="bold">Subtotal:</td>
                             <td class="amount">₹ ${formatINR(subtotal)}</td>
-                      
+                        </tr>
+                        ${discount > 0 ? `
+                        <tr>
+                            <td class="bold" style="color: #dc2626;">Discount:</td>
+                            <td class="amount" style="color: #dc2626;">- ₹ ${formatINR(discount)}</td>
+                        </tr>` : ''}
+                        <tr>
+                            <td class="bold">Total Amount:</td>
+                            <td class="amount bold">₹ ${formatINR(totalAmount)}</td>
+                        </tr>
+                        ${advance > 0 ? `
+                        <tr>
+                            <td class="bold" style="color: #16a34a;">Advance Paid:</td>
+                            <td class="amount bold" style="color: #16a34a;">- ₹ ${formatINR(advance)}</td>
+                        </tr>
+                        <tr>
+                            <td class="bold balance">Balance Due:</td>
+                            <td class="amount bold balance">₹ ${formatINR(balanceDue)}</td>
+                        </tr>` : ''}
+                    </table>
+                `;
+            } else {
+                itemsHTML += `
+                    <tr>
+                        <td style="text-align: right; border-bottom: none; padding-top: 15px;"><strong>Total Amount:</strong></td>
+                        <td class="price-col" style="border-bottom: none; font-size: 14pt; padding-top: 15px;">₹ ${formatINR(totalAmount)}</td>
+                    </tr>
+                `;
+            }
+
+            const termsListHTML = termsText.split('\n').filter(t => t.trim() !== '').map(t => `<li>${formatBulletText(t)}</li>`).join('');
+
+            document.getElementById('pdf-document').innerHTML = `
+                <div class="header">
+                    <table class="meta-info" style="margin-bottom:0;">
+                        <tr>
+                            <td>
+                                <h1>${docTitle}</h1>
+                                <p style="margin: 5px 0 0 0; color: #64748b; font-weight: bold;">${docSubtitle}</p>
+                            </td>
+                            <td class="right">
+                                <p style="margin: 0;"><strong>Date:</strong> ${docDate}</p>
+                                <p style="margin: 5px 0 0 0;"><strong>${numLabel}</strong> ${docNumber}</p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <table class="meta-info">
+                    <tr>
+                        <td>
+                            <strong>${docTitle.toUpperCase().includes('INVOICE') ? 'Billed To:' : 'To:'}</strong><br>
+                            ${clientName}<br>
+                            ${clientPhone}
+                        </td>
+                        <td class="right"></td>
+                    </tr>
+                </table>
+
+                ${showOverview ? `
+                    <div class="section-title">Project Overview</div>
+                    <p style="font-size: 10.5pt; margin-top: 0;">${overviewText}</p>
+                    <div class="section-title">Scope of Work (Core Features)</div>
+                ` : ''}
+
+                <table class="table-pricing">
+                    <thead>
+                        <tr>
+                            <th>Item Description</th>
+                            <th class="price-col">Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHTML}
+                    </tbody>
+                </table>
+
+                ${totalsHTML}
+
+                ${showTerms ? `
+                    <div class="section-title">Terms & Conditions</div>
+                    <div class="terms">
+                        <ul>${termsListHTML}</ul>
+                    </div>
+                ` : ''}
+
+                <div class="footer">
+                    ${footerText}
+                </div>
+            `;
+        }
+
+        // --- 6. HISTORY & DOWNLOAD ---
+        function updateHistoryBadges() {
+            const year = new Date().getFullYear();
+            document.getElementById('nextInvBadge').textContent = `INV-SYS-${year}-${String(invCounter).padStart(3, '0')}`;
+            document.getElementById('nextQuoteBadge').textContent = `SYS-${year}-${String(quoteCounter).padStart(3, '0')}`;
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            savedHistory.forEach((h, index) => {
+                list.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-emerald-400 border border-slate-700">${h.docNumber}</span>
+                                <span class="text-sm font-bold text-white">${h.clientName}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">${h.docSubtitle} • ${h.date}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-bold text-white">₹ ${formatINR(h.total)}</p>
+                            <p class="text-xs text-slate-400">Bal: ₹ ${formatINR(h.balance)}</p>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function saveAndDownloadPDF() {
+            renderPDF();
+            lockCurrentDocument();
+
+            const element = document.getElementById('pdf-document');
+            const docNum = document.getElementById('docNumber').value.trim() || 'Document';
+            
+            // Temporarily remove mobile scaling so html2pdf captures full A4 resolution
+            const prevTransform = element.style.transform;
+            const prevMargin = element.style.marginBottom;
+            element.style.transform = 'none';
+            element.style.marginBottom = '0';
+
+            const opt = {
+                margin:       0,
+                filename:     `${docNum}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.transform = prevTransform;
+                element.style.marginBottom = prevMargin;
+                // Generate the next unique number automatically for the next bill
+                generateFreshNumber();
+            });
+        }
+
+        // Initialize App
+        document.getElementById('docDate').value = getTodayFormatted();
+        document.getElementById('cDueDate').value = new Date().toISOString().split('T')[0];
+        renderClients();
+        renderItemInputs();
+        setDocMode('invoice');
+        updateHistoryBadges();
+    </script>
+</body>
+</html>
